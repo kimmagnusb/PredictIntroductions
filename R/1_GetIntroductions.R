@@ -1,53 +1,85 @@
 
-##### 1. Get all occurrence data from GBIF ######
+#---------------------------------------------------------------------
+# 0. load libraries and set define some parameters 
+#---------------------------------------------------------------------
+library(rgbif)
+library(dplyr)
+library(sf)
+library(stringr)
+
+initate_download <- TRUE # should script initiate GBIF download? 
+download_native_range <- TRUE # should script initiate download of native range?
+species_list <- c("Coregonus lavaretus", # define species of interest
+                  "Esox lucius", 
+                  "Rutilus rutilus",
+                  "Scardinius erythrophthalmus", 
+                  "Perca fluviatilis",
+                  "Oncorhynchus mykiss")
+
+
+#---------------------------------------------------------------------
+# 1. Get occurrence data from GBIF 
+#---------------------------------------------------------------------
 
 ## 1A. Initiate Download
 
 # If this is the first time downloading a species, you will need the following code to initiate the download.
 # If you already have already initiated the download and the file is waiting, you can skip to 1B
+#
+# Warning: don't spin off to many downloads at once (i.e. re-run this pice of script again and again). 
+# GBIF will only allow three concurrent download requests per. 
 
 
 if (initiate_download == TRUE) {
-  
+  # set GBIF user account credentials 
   options(gbif_user=rstudioapi::askForPassword("my gbif username"))
   options(gbif_email=rstudioapi::askForPassword("my registred gbif e-mail"))
   options(gbif_pwd=rstudioapi::askForPassword("my gbif password"))
   
-  key <- name_suggest(q=species_name, rank='species')$key[1] 
+  keys <- as.integer()
+  for(i in 1:length(species_list)){
+    keys[i] <- name_suggest(q=species_list[i], rank='species')$key[1] 
+  }
+ 
   
   # Take the key given by the code above and initiate the download using the following command
-  download_key <- occ_download(
-    paste0('taxonKey = ',key),
-    'hasCoordinate = TRUE',
-    'country = NO',
-    #geom_param,
-    type = "and"
+  download_key <- occ_download_prep(
+    paste0('taxonKey = ',paste(keys[1:3],collapse=",")),
+    type = "or"
   ) %>% 
     occ_download_meta
+  
+  
   
   stop("Download being initiated. You will have to wait for download to complete in GBIF. Suggest that
        you wait 15 minutes then run script again with initiate_download set to FALSE. n that time,
        update the download_keysM table with new doanload codes and species info.")
-}
   
+  # store download_key for re-use 
+  dir.create(".Data/", showWarnings=FALSE)  
+  saveRDS(download_key,"./Data/download_key.rds")
+}
+
+
   ## 1B. Get the data. If you already have the data, you can skip down to 1C.
   
-  # Most of our downloads have already been initiated. The following table gives you download keys for each species
+ # Most of our downloads have already been initiated. The following table gives you download keys for each species
   # download_keys <- c("0009277-190813142620410","0005604-190813142620410","0009282-190813142620410",
   #                      "0012533-190813142620410", "0012534-190813142620410","0014766-190813142620410")
   # download_keysM <- as.data.frame(cbind(download_keys,c("Coregonus lavaretus", "Esox lucius", "Rutilus rutilus",
   #                                                        "Scardinius erythrophthalmus", "Perca fluviatilis","Oncorhynchus mykiss"),
   #                                       c("sik", "gjedde","mort","soerv","abbor",NA)))
+  # dir.create("./Data",showWarnings = TRUE)
   # save(download_keysM,file="./Data/download_keysM.rda")
-load("./Data/download_keysM.rda")
+
+download_key <- readRDS("./Data/download_key.rds")
 
 temp <- tempdir()
-download.file(url=paste("http://api.gbif.org/v1/occurrence/download/request/",
-                        download_keysM[download_keysM$V2 == species_name,1],sep=""),
+download.file(url=download_key$downloadLink,
               destfile=paste0(temp,"/tmp.zip"),
               quiet=TRUE, mode="wb")
 
-# Unzip species file and save it in the species folder.
+# Unzip dowloaded occurrence file
 species_distribution <- rio::import(unzip(paste0(temp,"/tmp.zip"),files="occurrence.txt"))
 file_name <- paste0("./Data/",gsub(' ','_',species_name),"/GBIFDownload.RDS")
 saveRDS(species_distribution,file_name)
@@ -55,17 +87,32 @@ unlink(temp)
 
 print("Finished importing raw species data")
 
-##### 2. Download native distribution #####
+#---------------------------------------------------------------------
+# 2. Download native distribution
+#
+# Load native distribution range and assign establishmentMeans status
+# to occurrences accordingly 
+#---------------------------------------------------------------------
 
-## 2A. Get native distribution
-### Will need to have a download file from UNIT very soon here, but for now am uploading from box
-if (native_range == TRUE) {
-  # THis just gives us the file name to use.
-  short_name <- download_keysM[download_keysM[,2]==species_name,3]
+## 2A. Get native distribution from https://doi.org/10.21400/1mwt3950 (NB: data are in EPSG:32633)
+if (download_native_range == TRUE) {
   
-  fish_dist <- st_read(paste0("./Data/SHAPE_Files/",short_name,".shp"))
-  saveRDS(fish_dist, paste0("./Data/",gsub(' ','_',species_name),"/native_distribution.RDS"))
+  url <- "https://api.loke.aws.unit.no/dlr-gui-backend-resources-content/v2/contents/links/1efa6a5a-74b7-46d1-9bd6-49a7b3c58d030e379585-05d5-42ed-b00d-35d2d2b0f9bf1fc5a283-f739-4205-8c84-9748cb6d76ae"
+  temp <- tempdir()
+  download.file(url,paste0(temp,"/hk_native.zip"))
+  unzip(paste0(temp,"/hk_native.zip"),exdir=temp, overwrite=TRUE)
+  files <- unzip(paste0(temp,"/hk_native.zip"),list = TRUE)[,1]
+  shapefile <- files[str_detect(files,".shp")]
+  hk_distribution_map <-  st_read(paste0(temp,"/",shapefile))
+  hk_distribution_map <- st_transform(hk_distribution_map, 4326) # reproject data to lat/long wgs84
+  
+  dir.create("Data/",showWarnings = FALSE)
+  saveRDS(hk_distribution_map,"Data/native_distribution.rds")
+
 }
+
+
+
 ## 2B: Organise point data into spatial format
 
 # Need to match the point data to the occurrence data now
