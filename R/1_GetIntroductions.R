@@ -9,6 +9,8 @@ library(stringr)
 
 initate_download <- TRUE # should script initiate GBIF download? 
 download_native_range <- TRUE # should script initiate download of native range?
+download_norway_map <- TRUE # should script download Norwegian mainland border
+
 species_list <- c("Coregonus lavaretus", # define species of interest
                   "Esox lucius", 
                   "Rutilus rutilus",
@@ -81,6 +83,16 @@ download.file(url=download_key$downloadLink,
 
 # Unzip dowloaded occurrence file
 species_distribution <- rio::import(unzip(paste0(temp,"/tmp.zip"),files="occurrence.txt"))
+
+# filter out observations without coordinates
+# Transform to spatial data
+# Filter out observations from Norway----
+if(download_norway_map==TRUE){
+  dir.create("Data/",showWarnings = FALSE)
+  download.file("https://biogeo.ucdavis.edu/data/gadm3.6/Rsf/gadm36_NOR_0_sf.rds", "./Data/no_poly.rds")
+}
+no_poly <- readRDS("./Data/no_poly.rds")
+
 file_name <- paste0("./Data/",gsub(' ','_',species_name),"/GBIFDownload.RDS")
 saveRDS(species_distribution,file_name)
 unlink(temp)
