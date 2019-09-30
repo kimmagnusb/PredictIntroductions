@@ -149,7 +149,7 @@ if (all_lakes ==  TRUE) {
   # Get lakes for everything
   all_lakes <- tbl(con,"location") %>%
     filter(countryCode =='NO') %>%
-    select(locationID, waterBodyID, county, no_vatn_lnr, decimalLatitude, decimalLongitude) %>%
+    dplyr::select(locationID, waterBodyID, county, no_vatn_lnr, decimalLatitude, decimalLongitude) %>%
     collect()
   saveRDS(all_lakes,file="./Data/all_lakes.RDS")
 } else {
