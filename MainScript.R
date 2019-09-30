@@ -57,10 +57,10 @@ size_threshold <- 0.02
 
 # This script will take a while, as it's running a model on up to 250,000 lakes. Grab a 
 # coffee. Teach it to do algebra.
-source("3_FullModelConstruct.R")
+source("./R/3_FullModelConstruct.R")
 
 # Now we run a second model, using buffered data
-source("4_BufferedModelConstruct.R")
+source("./R/4_BufferedModelConstruct.R")
 
 # The output from this is the same as the second, except that you get a map as well
 # showing what the buffered region looks like.
@@ -70,21 +70,21 @@ plot(comb_bif)
 # beta intervals, and model deviance.
 # 
 use_buffered_model <- FALSE
-source("5_ModelAnalysis.R")
+source("./R/5_ModelAnalysis.R")
 
 # Now we can run our simulations. need to define which model we want to use.
 # n_loops simply tells us how many iterations we want to run. Be careful,
 # because the run time can be enormous.
 n_loops <- 100
 
-source("6_Looping.R")
+source("./R/6_Looping.R")
 
 # Last step is simply doing some data visualisation.
 
 prob_threshold <- 0.5
 axis_limit <- 150
 
-source("7_Visualisations.R")
+source("./R/7_Visualisations.R")
 
 
 

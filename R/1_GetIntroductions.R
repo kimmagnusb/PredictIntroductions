@@ -4,8 +4,6 @@
 #---------------------------------------------------------------------
 
 
-download_norway_map <- TRUE # should script download Norwegian mainland border
-
 species_list <- c("Coregonus lavaretus", # define species of interest
                   "Esox lucius", 
                   "Rutilus rutilus",
@@ -110,7 +108,6 @@ if (download_native_range == TRUE) {
   hk_distribution_map <-  st_read(paste0(temp,"/",shapefile))
   hk_distribution_map <- st_transform(hk_distribution_map, 4326) # reproject data to lat/long wgs84
   
-  dir.create("Data/",showWarnings = FALSE)
   saveRDS(hk_distribution_map,"Data/native_distribution.rds")
 
 }
@@ -120,12 +117,12 @@ if (download_native_range == TRUE) {
 ## 2B: Organise point data into spatial format
 
 # Need to match the point data to the occurrence data now
-species_dist_short <- species_distribution %>%
-  dplyr::select(gbifID,occurrenceID,catalogNumber,decimalLongitude, decimalLatitude,species,taxonKey,datasetKey, locality,municipality,county,countryCode,locationID,
-                eventDate,year,month,day,samplingProtocol,eventID,fieldNumber,
-                recordedBy,dynamicProperties,collectionCode,datasetName,license,institutionCode)
+species_dist_short <- species_distribution_all[complete.cases(species_distribution_all$decimalLongitude),]
+
+
 species_dist_short$longitude <- species_dist_short$decimalLongitude
 species_dist_short$latitude <- species_dist_short$decimalLatitude
+species_dist_short$scientificNameShort <- word(species_dist_short$scientificName, 1,2, sep=" ")
 
 # Have to convert it using the sf package first. Standard CRS uses the EPSG 32633.
 dist_sf <- st_as_sf(species_dist_short, coords = c("longitude", "latitude"), 
@@ -159,24 +156,29 @@ occ_with_lakes$dist_to_lake <- as.numeric(dist_to_lake) # add the distance calcu
 # Get rid of all coords which are more than a certain distance from the nearest lake
 occ_OKlakes <- occ_with_lakes %>% filter(dist_to_lake < dist_threshold)
 
-# Get rid of duplicates
-occ_OKlakes <- occ_OKlakes[!duplicated(occ_OKlakes$vatnLnr),]
-
 ## 2D. Now figure out whether or not it's in the native range
 # Check intersection
-if (native_range == TRUE) {
-  fish_dist <- st_transform(fish_dist, 32633)
-  inOut <- st_intersects(occ_OKlakes, fish_dist)
+native_orNot <- list()
 
-  # This gives us a list, which gives the status of occurrence for each lake. Since we want
-  # no occurrence status, the list elements with length 0 are the ones that are not in the 
-  # native range.
-  occ_OKlakes$inOut <- lengths(inOut)
+for(i in 1:length(species_list)) {
+  if (species_list[i] != 'Oncorhynchus mykiss') {
+    fish_dist <- hk_distribution_map[(hk_distribution_map$canonicaln==species_list[i] & hk_distribution_map$establishm=="native"),]
+    fish_dist <- st_transform(fish_dist, 32633)
+    species_lakes <- occ_OKlakes[occ_OKlakes$scientificNameShort == species_list[i],]
+    inOut <- st_intersects(species_lakes, fish_dist)
+    
+    # This gives us a list, which gives the status of occurrence for each lake. Since we want
+    # no occurrence status, the list elements with length 0 are the ones that are not in the 
+    # native range.
+    species_lakes$inOut <- lengths(inOut)
+  } else {
+    species_lakes <- occ_OKlakes[occ_OKlakes$scientificNameShort == species_list[i],]
+    species_lakes$inOut <- 0
+  }
+  native_orNot[[i]] <- species_lakes %>% dplyr::select(vatnLnr,inOut)
 }
-occ_OKlakes$inOut <- 0
+names(native_orNot) <- species_list
 
-introductions <- occ_OKlakes %>% filter(inOut==0)
-presences <- occ_OKlakes
 
 print("Finished matching species distribution to native range and lakes")
 
