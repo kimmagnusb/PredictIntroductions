@@ -34,21 +34,21 @@ if (dir.exists(paste0("./Data/",gsub(' ','_',species_name))) == FALSE
 #   from Nordland, Troms and Finnmark, set delete_north to FALSE.
 #   If the species does not have a native range in Norway, select native_range to FALSE.
 
-initiate_download <- FALSE
+initiate_download <- TRUE
 download_lakes <- FALSE
 all_lakes <-  FALSE
 delete_north <-  TRUE
-native_range <- TRUE
+download_native_range <- TRUE
 
 #   dist_threshold sets the distance between a point and its designated lake which
 #   is acceptable.
 dist_threshold <- 50
 
-source("1_GetIntroductions.R")
+source("./R/1_GetIntroductions.R")
 
 # Next step is to add in all the covariates.
 
-source("2_BioticDataAddition.R")
+source("./R/2_BioticDataAddition.R")
 
 # Now we run the preliminary model. Only thing we need to choose is what our size limit 
 # on lakes will be.
@@ -89,8 +89,7 @@ source("7_Visualisations.R")
 
 
 
-
-
+maps$predicted_appearances$layers
 
 
 

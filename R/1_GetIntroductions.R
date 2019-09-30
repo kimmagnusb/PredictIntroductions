@@ -2,13 +2,8 @@
 #---------------------------------------------------------------------
 # 0. load libraries and set define some parameters 
 #---------------------------------------------------------------------
-library(rgbif)
-library(dplyr)
-library(sf)
-library(stringr)
 
-initate_download <- TRUE # should script initiate GBIF download? 
-download_native_range <- TRUE # should script initiate download of native range?
+
 download_norway_map <- TRUE # should script download Norwegian mainland border
 
 species_list <- c("Coregonus lavaretus", # define species of interest
@@ -46,7 +41,7 @@ if (initiate_download == TRUE) {
   
   # Take the key given by the code above and initiate the download using the following command
   download_key <- occ_download(
-    paste0('taxonKey = ',paste(keys[1:3],collapse=",")),
+    paste0('taxonKey = ',paste(keys[1:6],collapse=",")),
     type = "or"
   ) %>% 
     occ_download_meta
@@ -83,18 +78,15 @@ download.file(url=download_key$downloadLink,
 
 # Unzip dowloaded occurrence file
 species_distribution <- rio::import(unzip(paste0(temp,"/tmp.zip"),files="occurrence.txt"))
+species_distribution_all <- species_distribution %>%
+  filter(countryCode == "NO") %>%
+  dplyr::select(gbifID,scientificName, occurrenceID,catalogNumber,decimalLongitude, decimalLatitude,species,taxonKey,datasetKey, locality,municipality,county,countryCode,locationID,
+                eventDate,year,month,day,samplingProtocol,eventID,fieldNumber,
+                recordedBy,dynamicProperties,collectionCode,datasetName,license,institutionCode)
 
-# filter out observations without coordinates
-# Transform to spatial data
-# Filter out observations from Norway----
-if(download_norway_map==TRUE){
-  dir.create("Data/",showWarnings = FALSE)
-  download.file("https://biogeo.ucdavis.edu/data/gadm3.6/Rsf/gadm36_NOR_0_sf.rds", "./Data/no_poly.rds")
-}
-no_poly <- readRDS("./Data/no_poly.rds")
 
-file_name <- paste0("./Data/",gsub(' ','_',species_name),"/GBIFDownload.RDS")
-saveRDS(species_distribution,file_name)
+file_name <- paste0("./Data/allSpecies_GBIFDownload.RDS")
+saveRDS(species_distribution_all,file_name)
 unlink(temp)
 
 print("Finished importing raw species data")
