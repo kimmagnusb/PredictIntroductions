@@ -68,6 +68,7 @@ all_lakes_dataBuild$utm_y <- all_lakes_utm[,2]
 
 # Get complete cases
 all_lakes_final <- all_lakes_dataBuild %>%
+  filter(area_km2 > size_threshold) %>%
   as.data.frame() %>%
   dplyr::select(-geometry)
 

@@ -20,26 +20,26 @@ library(stringr)
 source("ExtraFunctions.R")
 
 
-### Script 1 downloads everything for you. 
-species_name <- 'Esox lucius'
+### Script 1 downloads everything for you for all species. 
+
+# Define species of interest
+
+species_list <- c("Coregonus lavaretus", # define species of interest
+                  "Esox lucius", 
+                  "Rutilus rutilus",
+                  "Scardinius erythrophthalmus", 
+                  "Perca fluviatilis",
+                  "Oncorhynchus mykiss")
 
 # All the data will be transferred to one file. Create that file if it hasn't already been made.
 if (dir.exists(paste0("./Data/",gsub(' ','_',species_name))) == FALSE
     ) {dir.create(paste0("./Data/",gsub(' ','_',species_name)))}
 
-
-#   If the download has already been initiated, set the initiate_download value to FALSE. 
-#   If you have already downloaded lake data and it is sitting in your Data folder, set 
-#   download_lakes to FALSE. If you have already downloaded all lake location data in 
-#   order to create absences, set all_lakes to FALSE. If you want to get rid of all lakes
-#   from Nordland, Troms and Finnmark, set delete_north to FALSE.
-#   If the species does not have a native range in Norway, select native_range to FALSE.
-
-initiate_download <- FALSE
-download_lakes <- FALSE
-all_lakes <-  FALSE
-delete_north <-  TRUE
-download_native_range <- TRUE
+initiate_download <- FALSE            # Have you already initiated a download? If so, set to false.
+download_lakes <- FALSE               # Have you already downloaded the lakes? If so, set to false.
+get_all_lakes <-  FALSE               # Have you downloaded all lake data from NOFA? If so, set to false.
+delete_north <-  TRUE                 # Do you want to use lakes north of Tronderlag? If so, set to true.
+download_native_range <- FALSE        # Have you already downloaded species' native ranges? If so, set to false.
 
 #   dist_threshold sets the distance between a point and its designated lake which
 #   is acceptable.
@@ -47,12 +47,20 @@ dist_threshold <- 50
 
 source("./R/1_GetIntroductions.R")
 
-# Next step is to add in all the covariates.
+# Next step is a fairly short script to add in all environmental covariates which can be 
+# calculated regardless of species.
 
 source("./R/2_BioticDataAddition.R")
 
+# From now on everything becomes species specific.
+
+focal_species <- species_list[5]
+
 # Now we run the preliminary model. Only thing we need to choose is what our size limit 
 # on lakes will be.
+
+source("./R/2_SpeciesDataAddition.R")
+
 
 size_threshold <- 0.02
 
