@@ -4,12 +4,6 @@
 #---------------------------------------------------------------------
 
 
-species_list <- c("Coregonus lavaretus", # define species of interest
-                  "Esox lucius", 
-                  "Rutilus rutilus",
-                  "Scardinius erythrophthalmus", 
-                  "Perca fluviatilis",
-                  "Oncorhynchus mykiss")
 
 
 #---------------------------------------------------------------------
@@ -44,48 +38,40 @@ if (initiate_download == TRUE) {
   ) %>% 
     occ_download_meta
   
-  
+  # store download_key for re-use 
+  saveRDS(download_key,"./Data/download_key.rds")
   
   stop("Download being initiated. You will have to wait for download to complete in GBIF. Suggest that
        you wait 15 minutes then run script again with initiate_download set to FALSE. n that time,
        update the download_keysM table with new doanload codes and species info.")
   
-  # store download_key for re-use 
-  dir.create(".Data/", showWarnings=FALSE)  
-  saveRDS(download_key,"./Data/download_key.rds")
-}
+} else {download_key <- readRDS("./Data/download_key.rds")}
 
+## 1B. Download lakes into Data folder
 
-  ## 1B. Get the data. If you already have the data, you can skip down to 1C.
+# Need to narrow down to Norwegian data only, and cut down on the number of columns.
+
+if (download_lakes == TRUE) {
+  temp <- tempdir()
+  download.file(url=download_key$downloadLink,
+                destfile=paste0(temp,"/tmp.zip"),
+                quiet=TRUE, mode="wb")
   
- # Most of our downloads have already been initiated. The following table gives you download keys for each species
-  # download_keys <- c("0009277-190813142620410","0005604-190813142620410","0009282-190813142620410",
-  #                      "0012533-190813142620410", "0012534-190813142620410","0014766-190813142620410")
-  # download_keysM <- as.data.frame(cbind(download_keys,c("Coregonus lavaretus", "Esox lucius", "Rutilus rutilus",
-  #                                                        "Scardinius erythrophthalmus", "Perca fluviatilis","Oncorhynchus mykiss"),
-  #                                       c("sik", "gjedde","mort","soerv","abbor",NA)))
-  # dir.create("./Data",showWarnings = TRUE)
-  # save(download_keysM,file="./Data/download_keysM.rda")
-
-download_key <- readRDS("./Data/download_key.rds")
-
-temp <- tempdir()
-download.file(url=download_key$downloadLink,
-              destfile=paste0(temp,"/tmp.zip"),
-              quiet=TRUE, mode="wb")
-
-# Unzip dowloaded occurrence file
-species_distribution <- rio::import(unzip(paste0(temp,"/tmp.zip"),files="occurrence.txt"))
-species_distribution_all <- species_distribution %>%
-  filter(countryCode == "NO") %>%
-  dplyr::select(gbifID,scientificName, occurrenceID,catalogNumber,decimalLongitude, decimalLatitude,species,taxonKey,datasetKey, locality,municipality,county,countryCode,locationID,
-                eventDate,year,month,day,samplingProtocol,eventID,fieldNumber,
-                recordedBy,dynamicProperties,collectionCode,datasetName,license,institutionCode)
+  # Unzip dowloaded occurrence file
+  species_distribution <- rio::import(unzip(paste0(temp,"/tmp.zip"),files="occurrence.txt"))
+  species_distribution_all <- species_distribution %>%
+    filter(countryCode == "NO" & occurrenceStatus != "absent") %>%
+    dplyr::select(gbifID,scientificName, occurrenceID, occurrenceStatus, catalogNumber,decimalLongitude, decimalLatitude,species,taxonKey,datasetKey, locality,municipality,county,countryCode,locationID,
+                  eventDate,year,month,day,samplingProtocol,eventID,fieldNumber,
+                  recordedBy,dynamicProperties,collectionCode,datasetName,license,institutionCode)
+  
+  saveRDS(species_distribution_all,"./Data/allSpecies_GBIFDownload.RDS")
+  unlink(temp)
+} else {species_distribution_all <- readRDS("./Data/allSpecies_GBIFDownload.RDS")}
 
 
-file_name <- paste0("./Data/allSpecies_GBIFDownload.RDS")
-saveRDS(species_distribution_all,file_name)
-unlink(temp)
+
+
 
 print("Finished importing raw species data")
 
@@ -110,7 +96,7 @@ if (download_native_range == TRUE) {
   
   saveRDS(hk_distribution_map,"Data/native_distribution.rds")
 
-}
+} else {hk_distribution_map <- readRDS("Data/native_distribution.rds")}
 
 
 
@@ -118,7 +104,6 @@ if (download_native_range == TRUE) {
 
 # Need to match the point data to the occurrence data now
 species_dist_short <- species_distribution_all[complete.cases(species_distribution_all$decimalLongitude),]
-
 
 species_dist_short$longitude <- species_dist_short$decimalLongitude
 species_dist_short$latitude <- species_dist_short$decimalLatitude
@@ -156,37 +141,17 @@ occ_with_lakes$dist_to_lake <- as.numeric(dist_to_lake) # add the distance calcu
 # Get rid of all coords which are more than a certain distance from the nearest lake
 occ_OKlakes <- occ_with_lakes %>% filter(dist_to_lake < dist_threshold)
 
-## 2D. Now figure out whether or not it's in the native range
-# Check intersection
-native_orNot <- list()
-
-for(i in 1:length(species_list)) {
-  if (species_list[i] != 'Oncorhynchus mykiss') {
-    fish_dist <- hk_distribution_map[(hk_distribution_map$canonicaln==species_list[i] & hk_distribution_map$establishm=="native"),]
-    fish_dist <- st_transform(fish_dist, 32633)
-    species_lakes <- occ_OKlakes[occ_OKlakes$scientificNameShort == species_list[i],]
-    inOut <- st_intersects(species_lakes, fish_dist)
-    
-    # This gives us a list, which gives the status of occurrence for each lake. Since we want
-    # no occurrence status, the list elements with length 0 are the ones that are not in the 
-    # native range.
-    species_lakes$inOut <- lengths(inOut)
-  } else {
-    species_lakes <- occ_OKlakes[occ_OKlakes$scientificNameShort == species_list[i],]
-    species_lakes$inOut <- 0
-  }
-  native_orNot[[i]] <- species_lakes %>% dplyr::select(vatnLnr,inOut)
-}
-names(native_orNot) <- species_list
-
+saveRDS(occ_OKlakes,"Data/allSpecies_GBIFDownload_Edited.RDS")
 
 print("Finished matching species distribution to native range and lakes")
 
+#------------------------------------------------------------------------------
 #### 3. Find absences and thus get a list of introductions that is usable #####
+#------------------------------------------------------------------------------
 
 # only thing left to do is pull all absences from NOFA. For this, we need all locations 
 # outside of the native distribution
-if (all_lakes ==  TRUE) {
+if (get_all_lakes ==  TRUE) {
   
   pg_user=rstudioapi::askForPassword("Wallace username")
   pg_password=rstudioapi::askForPassword("password")
@@ -209,37 +174,55 @@ if (all_lakes ==  TRUE) {
   all_lakes <- readRDS("./Data/all_lakes.RDS")
 }
 
+# Figure out which lakes or in the native range or not (this will take a while)
 
 # Dulicate coordinates for later so that we can have a geometry column (produced when
 # using the sf package) and still have lat and long columns.
 all_lakes$latitude <- all_lakes$decimalLatitude
 all_lakes$longitude <- all_lakes$decimalLongitude
 
-# Introduced introductions/presence columns
-all_lakes$introduced <- ifelse(all_lakes$no_vatn_lnr %in% introductions$vatnLnr, 1, 0)
-all_lakes$presence <- ifelse(all_lakes$no_vatn_lnr %in% presences$vatnLnr, 1, 0)
-
 # Convert to sf file
 all_lakes_sf <- st_as_sf(all_lakes, coords = c("longitude", "latitude"), 
                          crs = 4326)
 all_lakes_sf <- st_transform(all_lakes_sf, 32633)
 
-if (native_range == TRUE) {
-  inOut_all <- st_intersects(all_lakes_sf, fish_dist)
-  all_lakes_sf$native <- lengths(inOut_all)
-} else {
-  all_lakes_sf$native <- 0
-}
-# If they're not present in the native range then we can't sue them in the model.
-# However we'll need them for the loops later, so keep them in
-all_lakes_sf$use_in_model <- ifelse(!(all_lakes_sf$native == 1 & all_lakes_sf$presence == 0),1,0)
+# See which lakes are in which native range
 
-# Get rid of all lakes north of Trondelag
+for(i in 1:length(species_list)) {
+  if (species_list[i] != 'Oncorhynchus mykiss') {
+    fish_dist <- hk_distribution_map[(hk_distribution_map$canonicaln==species_list[i] & hk_distribution_map$establishm=="native"),]
+    fish_dist <- st_transform(fish_dist, 32633)
+    inOut <- st_intersects(all_lakes_sf, fish_dist)
+    
+    # This gives us a list, which gives the status of occurrence for each lake. Since we want
+    # no occurrence status, the list elements with length 0 are the ones that are not in the 
+    # native range.
+    all_lakes_sf[,paste0(gsub(" ","_",species_list[i]),"_native")] <- lengths(inOut)
+  } else {
+    all_lakes_sf[,paste0(gsub(" ","_",species_list[i]),"_native")] <- 0
+  }
+}
+
+# Need to create a bunch of columns showing presence and introductions for all species. Function runs 
+# much quicker when converted to data frames instead of sf objects.
+indicator <- as.data.frame(occ_OKlakes)
+all_lakes_df <- as.data.frame(all_lakes_sf)
+
+for (i in 1:length(species_list)) {
+  present_lakes <- indicator[indicator$scientificNameShort==species_list[i],"vatnLnr"]
+  all_lakes_sf[,paste0(gsub(" ","_",species_list[i]),"_presence")] <- ifelse(all_lakes_df$no_vatn_lnr %in% present_lakes, 1, 0)
+  all_lakes_sf[,paste0(gsub(" ","_",species_list[i]),"_introduced")] <- 
+    ifelse(all_lakes_df$no_vatn_lnr %in% present_lakes & 
+             all_lakes_df[,paste0(gsub(" ","_",species_list[i]),"_native")] == 0, 1, 0)
+}
+
+
+# Lastly, Get rid of all lakes north of Trondelag
 if (delete_north == TRUE) {
   all_lakes_sf <- all_lakes_sf %>%
     filter(!(county %in% c("Troms","Finnmark","Nordland")))
 }
 print("Finished editing data")
 
-saveRDS(all_lakes_sf, file=paste0("./Data/",gsub(' ','_',species_name),"/introductions.RDS"))
+saveRDS(all_lakes_sf, file=paste0("./Data/introductions.RDS"))
 

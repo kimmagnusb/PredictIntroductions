@@ -16,6 +16,7 @@ library(FNN)
 library(readr)
 library(ggplot2)
 library(greta)
+library(stringr)
 source("ExtraFunctions.R")
 
 
@@ -34,7 +35,7 @@ if (dir.exists(paste0("./Data/",gsub(' ','_',species_name))) == FALSE
 #   from Nordland, Troms and Finnmark, set delete_north to FALSE.
 #   If the species does not have a native range in Norway, select native_range to FALSE.
 
-initiate_download <- TRUE
+initiate_download <- FALSE
 download_lakes <- FALSE
 all_lakes <-  FALSE
 delete_north <-  TRUE
