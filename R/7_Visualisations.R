@@ -9,13 +9,17 @@ Uncertainty <- analytics$intervals$width
 InitProbs <- analytics$intervals$mean
 
 all_data_likelihoods <- cbind(all_data, lake_likelihoods, Uncertainty,InitProbs)
-all_data_likelihoods$UncertaintyLevel <- as.factor(cut(all_data_likelihoods$Uncertainty, c(0, 0.01, 0.05, 0.15, 1),
+all_data_likelihoods$UncertaintyLevel <- as.factor(cut(all_data_likelihoods$Uncertainty, c(0, 0.01, 0.05, 0.15, 1.2),
                                                 labels = c("negligible","very low", "low","moderate")))
-all_data_likelihoods$PredictedIntro <- as.factor(cut(all_data_likelihoods$InitProbs, c(0, 0.05, 0.2, 0.5, 1),
+all_data_likelihoods$PredictedIntro <- as.factor(cut(all_data_likelihoods$lake_likelihoods, c(-0.01, 0.05, 0.2, 0.5, 1.01),
                                                        labels = c("very low", "low","moderate","high")))
 
 
 summary(all_data_likelihoods)
+
+saveRDS(all_data_likelihoods, file=paste0("./Data/",gsub(' ','_',species_name),"/introduction_likelihoods.RDS"))
+write.csv(all_data_likelihoods, file=paste0("./Data/",gsub(' ','_',species_name),"/introduction_likelihoods.csv"))
+
 
 # Produce a map of Norway to use
 Norway<-getData("GADM", country="NO", level=0)
