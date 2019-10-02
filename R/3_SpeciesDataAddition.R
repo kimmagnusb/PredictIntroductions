@@ -33,9 +33,6 @@ get_years <- raw_data %>%
   group_by(vatnLnr) %>%
   summarize(firstYear = min(year,na.rm=TRUE))
 
-# I think the easiest thing to 
-length(unique(get_years$firstYear))
-
 
 # We split the data into two
 # Get all lakes that can be used in model, get lakes with presence nearby
@@ -47,59 +44,86 @@ length(unique(get_years$firstYear))
 
 # So we produce a data frame of our introductions, excluding everything in the native range
 # and everything with an absence, plus everything with no identifiable year
-species_intro_data <- species_data[species_data$introduced == 1 & 
-                                     species_data$no_vatn_lnr %in% get_years$vatnLnr,]
+species_intro_data <- species_data %>% 
+  filter(introduced == 1 & no_vatn_lnr %in% get_years$vatnLnr)
 species_intro_data$year <- ifelse(species_intro_data$no_vatn_lnr %in% get_years$vatnLnr,
                                   get_years$firstYear,0)
 
+
+
 # We also produce a dataset with all presences, minus any introductions that have no identifiable
 # year.
-species_prese_data <- species_data[species_data$presence == 1 & !(species_data$introduced == 1 & 
-  !(species_data$no_vatn_lnr %in% get_years$vatnLnr)),]
+species_prese_data <- species_data %>%
+  filter(presence == 1 & 
+           !(introduced ==1 & !(no_vatn_lnr %in% get_years$vatnLnr)))
 species_prese_data$year <- ifelse(species_prese_data$no_vatn_lnr %in% get_years$vatnLnr,
                                   get_years$firstYear,0)
 
 # And produce a set of absences, since this is the easiest to calculate for
-species_absen_data <- all_data[all_data[,species_colnames[1]] == 0 & all_data[,species_colnames[3]] == 0,
-                               species_colnames_toKeep]
+species_absen_data <- species_data %>%
+  filter(native == 0 & presence == 0)
+  
+nn_nearest_abs <- get.knnx(species_prese_data[c("utm_x","utm_y")],species_absen_data[c("utm_x","utm_y")],k=1)
+species_absen_data$dist_n_pop <- nn_nearest_abs$nn.dist[,1]
 
-nn_absent <- get.knnx(species_prese_data[c("utm_x","utm_y")],species_absen_data[c("utm_x","utm_y")],k=1)
-species_absen_data$dist_n_pop <- nn_absent$nn.dist[,1]
+nn_nearby_abs <- get.knnx(species_prese_data[c("utm_x","utm_y")],species_absen_data[c("utm_x","utm_y")],k=70)
 
-
-nn2_absent <- get.knnx(species_prese_data[c("utm_x","utm_y")],species_absen_data[c("utm_x","utm_y")],k=70)
-
-number_nearby_pop <- nn2$nn.dist
+number_nearby_pop <- nn_nearby_abs$nn.dist
 number_nearby_pop[number_nearby_pop < 5000] <- 1
 number_nearby_pop[number_nearby_pop >= 5000] <- 0
 number_nearby_pop_vec <- rowSums(number_nearby_pop)
 
+spatial_data <- data.frame(species_absen_data$no_vatn_lnr, nn_nearest_abs$nn.dist, number_nearby_pop_vec)
+colnames(spatial_data) <- c("no_vatn_lnr","dist_n_pop","no_n_pop")
 
 
+time_steps <- sort(unique(species_intro_data$year)) 
+for (i in 1:length(time_steps)) {
+  year_step <- time_steps[i]
+  species_intro_historic <- species_intro_data %>% filter(year == year_step)
+  species_presence_historic <- species_prese_data %>% filter(year < year_step)
+  
+  nn_nearest <- get.knnx(species_presence_historic[c("utm_x","utm_y")],species_intro_historic[c("utm_x","utm_y")],k=2)
+  nearest_pop_vec <- ifelse(nn_nearest$nn.dist[,1]==0,nn_nearest$nn.dist[,2],nn_nearest$nn.dist[,1])
+  
+  nn_nearby <- get.knnx(species_presence_historic[c("utm_x","utm_y")],species_intro_historic[c("utm_x","utm_y")],k=70)
+  number_nearby_pop <- nn_nearby$nn.dist
+  number_nearby_pop[number_nearby_pop < 5000] <- 1
+  number_nearby_pop[number_nearby_pop >= 5000] <- 0
+  number_nearby_pop_vec <- rowSums(number_nearby_pop)
+  
+  spatial_data_timeStep <- data.frame(species_intro_historic$no_vatn_lnr, nearest_pop_vec, number_nearby_pop_vec)
+  colnames(spatial_data_timeStep) <- c("no_vatn_lnr","dist_n_pop","no_n_pop")
+  
+  spatial_data <- rbind(spatial_data,spatial_data_timeStep)
+
+  }
 
 
+# Now that we have these variables, need to produce a data frame full of only data that can be used in
+# our model (everything outside the native range)
+species_model_data <- species_data %>%
+  filter(native==0)
 
+species_model_data <- merge(species_model_data,spatial_data, all.x=TRUE, by="no_vatn_lnr")
 
-just_presences <- as.data.frame(all_lakes_sf) %>%
-  filter(presence == 1) %>% 
-  dplyr::select(waterBodyID,utm_x,utm_y)
+species_model_data <- species_model_data[complete.cases(species_model_data),]
 
-all_lakes_df <- as.data.frame(all_lakes_sf)
+# Find duplicates
+# all_data %>% group_by(no_vatn_lnr) %>%
+#   tally() %>%
+#   filter(n>1)
+# 
+# all_data %>% filter(no_vatn_lnr == 39447)
+# raw_data %>% filter(vatnLnr == 39447)
 
+duplicated_vant_Lnrs <- unique(species_model_data$no_vatn_lnr[duplicated(species_model_data$no_vatn_lnr)])
+if (length(duplicated_vant_Lnrs) != 0) {
+  print(paste0("Warning: You have rows with duplicated Norwegian lake numbers. Lakes ",paste(duplicated_vant_Lnrs,collapse=", "),
+               " are duplicated. Use the function display_duplicates to show them."),
+        header = ngettext(n, "Warning message:\n", "Warning messages:\n"))
+}
 
-nn <- get.knnx(just_presences[c("utm_x","utm_y")],all_lakes_df[c("utm_x","utm_y")],k=2)
-
-# If distance = 0 then we it's referring to itself, if it's not 0, means that it's got the right lake.
-dist_to_presence <- ifelse(nn$nn.dist[,1] == 0, nn$nn.dist[,2], nn$nn.dist[,1])
-
-# Last thing is to get number of populations nearby
-
-nn2 <- get.knnx(just_presences[c("utm_x","utm_y")],all_lakes_df[c("utm_x","utm_y")],k=70)
-
-
-
-all_lakes_dataBuild$nearby_pops <- number_nearby_pop_vec # Nearby populations
-all_lakes_dataBuild$pop_dist <- dist_to_presence         # Distance to nearest population
 
 print("Calculated number of populations nearby and distance to nearest,
       compiling all data now")
