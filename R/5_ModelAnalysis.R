@@ -3,16 +3,14 @@
 # This will actually be a script for checking either model
 
 if (use_buffered_model == TRUE) {
-  model_output <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/buffered_model_output.RDS"))
-  model_data_extra <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/buffered_model_data.RDS"))
+  model_output <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/buffered_model_output.RDS"))
+  model_data_extra <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/buffered_model_data.RDS"))
 } else {
-  model_output <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/whole_model_output.RDS"))
-  model_data_extra <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/whole_model_data.RDS"))
+  model_output <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/whole_model_output.RDS"))
+  model_data_extra <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/whole_model_data.RDS"))
 }
 
-all_data <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/whole_model_data.RDS"))
 
-all_data_usable <- all_data$raw_data %>% filter(use_in_model == 1 & native == 0)
 
 draws <- model_output$draws
 beta <- model_output$beta

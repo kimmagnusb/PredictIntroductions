@@ -20,6 +20,12 @@ biotic_data_import <- tbl(con, "lake") %>%
   filter(id %in% !!all_lakes_sf$waterBodyID) %>%
   collect()
 
+# Get location data
+biotic_data_import <- tbl(con, "lake") %>%
+  dplyr::select(id,area_km2, perimeter_m, distance_to_road) %>%
+  filter(id %in% !!all_lakes_sf$waterBodyID) %>%
+  collect()
+
 # Get temp
 temp_pool <- dbPool(drv = RPostgreSQL::PostgreSQL(), dbname = 'nofa',
                host = 'vm-srv-wallace.vm.ntnu.no', user = pg_user, password = pg_password,
@@ -73,5 +79,24 @@ all_lakes_final <- all_lakes_dataBuild %>%
   dplyr::select(-geometry)
 
 all_lakes_final_complete <- all_lakes_final[complete.cases(all_lakes_final),]
+
+# Need to sort out our duplicated lakes
+duplicated_lakes_vatnLnr <- all_lakes_final_complete[duplicated(all_lakes_final_complete$no_vatn_lnr),"no_vatn_lnr"]
+lake_dupes <- all_lakes_final_complete[all_lakes_final_complete$no_vatn_lnr %in% duplicated_lakes_vatnLnr,]
+
+# We have 4 lakes which have been duplicated, for the following reasons:
+# 39447 - 2 different lakes, can just keep them both in there
+# 41167 - Same lake, just delete one
+lakeRow_41167 <- which(all_lakes_final_complete$no_vatn_lnr==41167)[2]
+all_lakes_final_complete <- all_lakes_final_complete[-lakeRow_41167,]
+# 24083 - Same lake spread across county border, merge HFP and you're fine
+HFP_lake24083 <- mean(all_lakes_final_complete[all_lakes_final_complete$no_vatn_lnr == 24083, "HFP"])
+all_lakes_final_complete[all_lakes_final_complete$no_vatn_lnr == 24083, "HFP"] <- HFP_lake24083
+lakeRow_24083 <- which(all_lakes_final_complete$no_vatn_lnr==24083)[2:3]
+all_lakes_final_complete <- all_lakes_final_complete[-lakeRow_24083,]
+# 7 - This is the problem one, the one with area of 19.6 is the one that should have presences
+lakeRow_7 <- which(all_lakes_final_complete$no_vatn_lnr==7 & all_lakes_final_complete$area_km2 < 19)
+all_lakes_final_complete <- all_lakes_final_complete[-lakeRow_7,]
+
 
 saveRDS(all_lakes_final_complete, file=paste0("./Data/all_data.RDS"))

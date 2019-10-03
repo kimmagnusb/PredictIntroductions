@@ -50,23 +50,27 @@ source("./R/1_GetIntroductions.R")
 # Next step is a fairly short script to add in all environmental covariates which can be 
 # calculated regardless of species.
 
+
+size_threshold <- 0.02
+
 source("./R/2_BioticDataAddition.R")
 
 # From now on everything becomes species specific.
 
-focal_species <- species_list[5]
+focal_species <- species_list[4]
 
 # Now we run the preliminary model. Only thing we need to choose is what our size limit 
 # on lakes will be.
 
-source("./R/2_SpeciesDataAddition.R")
+# Don't worry about the duplication if the only lake that has been duplicated is 39447.
+# If there are others, let me know.
 
+source("./R/3_SpeciesDataAddition.R")
 
-size_threshold <- 0.02
 
 # This script will take a while, as it's running a model on up to 250,000 lakes. Grab a 
 # coffee. Teach it to do algebra.
-source("./R/3_FullModelConstruct.R")
+source("./R/4_FullModelConstruct.R")
 
 # Now we run a second model, using buffered data
 source("./R/4_BufferedModelConstruct.R")

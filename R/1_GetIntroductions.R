@@ -96,7 +96,9 @@ if (download_native_range == TRUE) {
   
   saveRDS(hk_distribution_map,"Data/native_distribution.rds")
 
-} else {hk_distribution_map <- readRDS("Data/native_distribution.rds")}
+} else {
+  hk_distribution_map <- readRDS("Data/native_distribution.rds")
+  }
 
 
 
@@ -215,6 +217,7 @@ for (i in 1:length(species_list)) {
     ifelse(all_lakes_df$no_vatn_lnr %in% present_lakes & 
              all_lakes_df[,paste0(gsub(" ","_",species_list[i]),"_native")] == 0, 1, 0)
 }
+
 
 
 # Lastly, Get rid of all lakes north of Trondelag

@@ -73,6 +73,7 @@ number_nearby_pop[number_nearby_pop < 5000] <- 1
 number_nearby_pop[number_nearby_pop >= 5000] <- 0
 number_nearby_pop_vec <- rowSums(number_nearby_pop)
 
+
 spatial_data <- data.frame(species_absen_data$no_vatn_lnr, nn_nearest_abs$nn.dist, number_nearby_pop_vec)
 colnames(spatial_data) <- c("no_vatn_lnr","dist_n_pop","no_n_pop")
 
@@ -83,17 +84,25 @@ for (i in 1:length(time_steps)) {
   species_intro_historic <- species_intro_data %>% filter(year == year_step)
   species_presence_historic <- species_prese_data %>% filter(year < year_step)
   
+  if (nrow(species_presence_historic) == 0) {
+    spatial_data_timeStep <- data.frame(species_intro_historic$no_vatn_lnr, 9999999, 0)
+    colnames(spatial_data_timeStep) <- c("no_vatn_lnr","dist_n_pop","no_n_pop")
+  } else {
+  
   nn_nearest <- get.knnx(species_presence_historic[c("utm_x","utm_y")],species_intro_historic[c("utm_x","utm_y")],k=2)
   nearest_pop_vec <- ifelse(nn_nearest$nn.dist[,1]==0,nn_nearest$nn.dist[,2],nn_nearest$nn.dist[,1])
   
-  nn_nearby <- get.knnx(species_presence_historic[c("utm_x","utm_y")],species_intro_historic[c("utm_x","utm_y")],k=70)
+  k_nearby <- ifelse(nrow(species_presence_historic) < 70, nrow(species_presence_historic)-1, 70)
+  
+  nn_nearby <- get.knnx(species_presence_historic[c("utm_x","utm_y")],species_intro_historic[c("utm_x","utm_y")],k=k_nearby)
   number_nearby_pop <- nn_nearby$nn.dist
-  number_nearby_pop[number_nearby_pop < 5000] <- 1
+  number_nearby_pop[number_nearby_pop < 5000 & number_nearby_pop > 0] <- 1
   number_nearby_pop[number_nearby_pop >= 5000] <- 0
   number_nearby_pop_vec <- rowSums(number_nearby_pop)
   
   spatial_data_timeStep <- data.frame(species_intro_historic$no_vatn_lnr, nearest_pop_vec, number_nearby_pop_vec)
   colnames(spatial_data_timeStep) <- c("no_vatn_lnr","dist_n_pop","no_n_pop")
+  }
   
   spatial_data <- rbind(spatial_data,spatial_data_timeStep)
 
@@ -117,21 +126,26 @@ species_model_data <- species_model_data[complete.cases(species_model_data),]
 # all_data %>% filter(no_vatn_lnr == 39447)
 # raw_data %>% filter(vatnLnr == 39447)
 
-duplicated_vant_Lnrs <- unique(species_model_data$no_vatn_lnr[duplicated(species_model_data$no_vatn_lnr)])
-if (length(duplicated_vant_Lnrs) != 0) {
-  print(paste0("Warning: You have rows with duplicated Norwegian lake numbers. Lakes ",paste(duplicated_vant_Lnrs,collapse=", "),
-               " are duplicated. Use the function display_duplicates to show them."),
-        header = ngettext(n, "Warning message:\n", "Warning messages:\n"))
+duplicated_vatn_Lnrs <- unique(species_model_data$no_vatn_lnr[duplicated(species_model_data$no_vatn_lnr)])
+if (length(duplicated_vatn_Lnrs) != 0) {
+  warning(paste0("You have rows with duplicated Norwegian lake numbers. Lakes ",
+               paste(duplicated_vatn_Lnrs,collapse=", ")," are duplicated. Use the function 
+               display_duplicates to show them. Rows contained in vector duplicated_vatn_lnr."))
 }
 
+display_duplicates <- function(duplicated_vatn_Lnrs) {
+  species_model_data %>% filter(no_vatn_lnr %in% duplicated_vatn_Lnrs)
+}
 
-print("Calculated number of populations nearby and distance to nearest,
-      compiling all data now")
+# We're now dealing with species-specific data. All the data will be transferred to one file. 
+# Create that file if it hasn't already been made.
+if (dir.exists(paste0("./Data/Species_Data/",gsub(' ','_',focal_species))) == FALSE
+) {dir.create(paste0("./Data/Species_Data/",gsub(' ','_',focal_species)))}
 
+saveRDS(species_model_data,paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/species_model_data.RDS"))
 
-
-
-print("Finished compiling data, find it in species folder under all_data.RDS")
+print("Finished species data for use in model, can be found in species file in data folder under
+      species_model_data.RDS")
 
 
 
