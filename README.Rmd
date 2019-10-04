@@ -9,9 +9,9 @@ This is an iterative script which builds model and then creates forecasts for th
 
 
 Folder set-up
-You will need a data folder in your working directory. This will need to include an HFP file with the Human Footprint Index raster from 1993. 
-The first script will create a species data folder for each of the 6 species. Separate parts of the first script require access to
-various box folders which you will need to have access to. I will also include the shape files I've used to create the native ditribution ranges very soon, but for now these are absent (waiting on permission from Anders to share on GitHUB).
+Work off the MainScript.R. It will create your data folders for you as you work through the various scripts. 
+Scripts 1 and 2 create data which will be put into a general Data folder. After that, data becomes species specific and will
+ve put into a species data folder.
 
 The main script and all of the source scripts have fairly copious comments attached as of right now, but of course there's always room to elaborate,
 so if there's a section of code you don't understand just let me know.
