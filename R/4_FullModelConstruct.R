@@ -1,7 +1,7 @@
 
 
 # Import raw data
-raw_data <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/all_data.RDS"))
+raw_data <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/species_model_data.RDS"))
 
 # Just a couple of transformation functions. Greta, and most of these Bayesian packages, requires standardised data. I've log-transformed two of the variables as well, SCI and buffer_5000m_population_2006.
 log_sc_gr <- function(vector) {new_vector <- as.numeric(scale(log(vector+1)))
@@ -12,21 +12,18 @@ return(new_vector)}
 
 # We now filter our data to get lakes larger than 2 ha
 env_data <- raw_data %>%
-  filter(area_km2 > size_threshold & use_in_model == 1) %>%
   transmute(areaL = log_sc_gr(area_km2),
             dist_roadL = log_sc_gr(distance_to_road),
             temp = sc_gr(eurolst_bio10),
-            pop_distL = log_sc_gr(pop_dist),
-            SCI = log_sc_gr((perimeter_m/1000)/(2*sqrt(pi*area_km2))),
+            dist_n_popL = log_sc_gr(dist_n_pop),
+            sciL = log_sc_gr((perimeter_m/1000)/(2*sqrt(pi*area_km2))),
             HFP = sc_gr(HFP),
-            n_pop = log_sc_gr(nearby_pops))
+            no_n_popL = log_sc_gr(no_n_pop))
 
 intro_data <- raw_data %>%
-  filter(area_km2 > size_threshold & use_in_model == 1) %>%
   dplyr::select(introduced)
 
 id_data <- raw_data %>%
-  filter(area_km2 > size_threshold & use_in_model == 1) %>%
   dplyr::select(locationID)
 
 
@@ -66,7 +63,7 @@ whole_draws_extra <- extra_samples(whole_draws,n_samples = 1000)
 print("Finished running draws, saving data now.")
 
 whole_model_output <- list(draws = whole_draws_extra, beta = beta, alpha = alpha, p = p)
-saveRDS(whole_model_output, file=paste0("./Data/",gsub(' ','_',species_name),"/whole_model_output.RDS"))
+saveRDS(whole_model_output, file=paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/whole_model_output.RDS"))
 
 whole_model_data <- list(raw_data = raw_data, env_data = env_data, intro_data = intro_data, id_data = id_data)
-saveRDS(whole_model_data, file=paste0("./Data/",gsub(' ','_',species_name),"/whole_model_data.RDS"))
+saveRDS(whole_model_data, file=paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/whole_model_data.RDS"))

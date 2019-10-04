@@ -2,14 +2,14 @@
 # Import data and draws and define components
 
 if (use_buffered_model == TRUE) {
-  model_output <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/buffered_model_output.RDS"))
-  model_data_extra <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/buffered_model_data.RDS"))
+  model_output <- readRDS(paste0("./Data/",gsub(' ','_',focal_species),"/buffered_model_output.RDS"))
+  model_data_extra <- readRDS(paste0("./Data/",gsub(' ','_',focal_species),"/buffered_model_data.RDS"))
 } else {
-  model_output <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/whole_model_output.RDS"))
-  model_data_extra <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/whole_model_data.RDS"))
+  model_output <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/whole_model_output.RDS"))
+  model_data_extra <- readRDS(paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/whole_model_data.RDS"))
 }
 
-all_data <- readRDS(paste0("./Data/",gsub(' ','_',species_name),"/all_data.RDS"))
+raw_data <- model_data_extra$raw_data
 
 draws <- model_output$draws
 beta <- model_output$beta
@@ -25,27 +25,17 @@ data_4scaling <- data_4scaling %>%
   transmute(areaL = log(area_km2+1),
             dist_roadL = log(distance_to_road+1),
             temp = eurolst_bio10,
-            pop_distL = log(pop_dist+1),
+            pop_distL = log(dist_n_pop+1),
             SCI = log(((perimeter_m/1000)/(2*sqrt(pi*area_km2)))+1),
             HFP = HFP,
-            n_pop = log(nearby_pops+1))
+            n_pop = log(no_n_pop+1))
 
 # Get the means and sds to work with
 means_relData <- apply(data_4scaling, 2, mean)
 SDs_relData <- apply(data_4scaling, 2, sd)
 
-# Now we scale our full data based on these means
-env_data <- all_data %>%
-  transmute(areaL = log(area_km2+1),
-            dist_roadL = log(distance_to_road+1),
-            temp = eurolst_bio10,
-            pop_distL = log(pop_dist+1),
-            SCI = log(((perimeter_m/1000)/(2*sqrt(pi*area_km2)))+1),
-            HFP = HFP,
-            n_pop = log(nearby_pops+1))
-
-env_data_takeMeans <- t(apply(env_data, 1, "-", means_relData))
-env_data_scaled <- t(apply(env_data_takeMeans, 1, "/", SDs_relData))
+# Now we get our already scaled data
+env_data <- model_data_extra$env_data
 
 print("Data is scaled.")
 
@@ -53,16 +43,17 @@ print("Data is scaled.")
 calc_beta <- apply(as.matrix(calculate(beta,draws)),2,mean)
 calc_alpha <- apply(as.matrix(calculate(alpha,draws)),2,mean)
 
-presences <- all_data$presence
+presences <- model_data_extra$intro_data$introduced
 
 # Get full index of nearby lakes that have a chance of colonisation, then narrow them down to lakes within 5000m
-attempt <- as.matrix(env_data_scaled) %*% as.matrix(calc_beta)
+attempt <- as.matrix(env_data) %*% as.matrix(calc_beta)
 eta <- sweep(attempt, 2, calc_alpha, "+")
 expeta <- exp(eta)
 init_probabilities <- expeta/(1+expeta)
 
-nn_all <- get.knnx(all_data[which(init_probabilities > 0.005),c("utm_x","utm_y")],all_data[c("utm_x","utm_y")],k=200)
-nn_all$nn.index[nn_all$nn.dist > 5000] <- 0
+nn_all <- get.knnx(raw_data[,c("utm_x","utm_y")],raw_data[c("utm_x","utm_y")],k=100)
+nn_all$nn.index[nn_all$nn.dist > 5000 | nn_all$nn.dist == 0] <- 0
+
 
 periods <- list()
 
@@ -95,8 +86,8 @@ for (s in 1:n_loops) {
     if (j==1) {
       # We create a table containing our new data
       
-      tempIncrease <- rnorm(nrow(env_data_scaled), temp_step/5, 0.05)
-      newData <- env_data_scaled
+      tempIncrease <- rnorm(nrow(env_data), temp_step/5, 0.05)
+      newData <- env_data
       newData[,"temp"] <- newData[,"temp"] + tempIncrease
       
       # Unfortunately because we're predicting for 600k + lakes, it's impossible to run the preditions all at one. So the loop below runs them in chunks of 10k lakes at a time.
@@ -125,7 +116,7 @@ for (s in 1:n_loops) {
       newData2[,"temp"] <- newData2[,"temp"] + tempIncrease
       
       # Now figure out the new distance to closest population
-      pop_proximity <- cbind(all_presences, all_data[,c("utm_x","utm_y","decimalLatitude","decimalLongitude","locationID")])
+      pop_proximity <- cbind(all_presences, raw_data[,c("utm_x","utm_y","decimalLatitude","decimalLongitude","locationID")])
       
       data_presences <- as.data.frame(pop_proximity %>% filter(all_presences == 1)
                                       %>% dplyr::select(locationID, utm_x, utm_y, decimalLongitude, decimalLatitude))
@@ -143,13 +134,13 @@ for (s in 1:n_loops) {
       locationID <- data_all$locationID
       distance_data <- as.data.frame(cbind(dist_to_closest_pop,locationID))
       
-      ordered_distances <- merge(all_data["locationID"],distance_data,all.x=TRUE,by="locationID")
+      ordered_distances <- merge(raw_data["locationID"],distance_data,all.x=TRUE,by="locationID")
       
       new_distances <- log(as.numeric(as.character(ordered_distances$dist_to_closest_pop))+1)
       
       # So now that we have the new measurements for closest population, these need to be scaled against those that we had for the initial population. So we subtract the mean and divide by the standard deviation.
       
-      newData2[,"pop_distL"] <- (new_distances-mean_dist)/sd_dist
+      newData2[,"dist_n_popL"] <- (new_distances-mean_dist)/sd_dist
       
       # Now we need to get the new measurements for number of close populations
       
@@ -180,7 +171,7 @@ for (s in 1:n_loops) {
       # 
       # Scale it like we did for the last variable
       
-      newData2[,"n_pop"] <- (number_nearby_pop_vec-mean_n_pop)/sd_n_pop
+      newData2[,"no_n_popL"] <- (number_nearby_pop_vec-mean_n_pop)/sd_n_pop
       
       attempt <- as.matrix(newData2) %*% as.matrix(calc_beta)
       eta <- sweep(attempt, 2, calc_alpha, "+")
@@ -220,6 +211,6 @@ print("Finished forecasting.")
 # }
 
 forecasts <- periods
-saveRDS(forecasts, file=paste0("./Data/",gsub(' ','_',species_name),"/forecasts.RDS"))
+saveRDS(forecasts, file=paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/forecasts.RDS"))
 summary(forecasts)
-
+summary(rowSums(forecasts)/100)
