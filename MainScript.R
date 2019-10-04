@@ -31,11 +31,12 @@ species_list <- c("Coregonus lavaretus", # define species of interest
                   "Perca fluviatilis",
                   "Oncorhynchus mykiss")
 
-# All the data will be transferred to one file. Create that file if it hasn't already been made.
-if (dir.exists(paste0("./Data/",gsub(' ','_',species_name))) == FALSE
-    ) {dir.create(paste0("./Data/",gsub(' ','_',species_name)))}
+# All the data you create will be transferred into a folder. Let's create that folder now.
+if (dir.exists(paste0("./Data")) == FALSE
+    ) {dir.create(paste0("./Data"))}
 
 initiate_download <- FALSE            # Have you already initiated a download? If so, set to false.
+GBIF_download <- FALSE                 # Have you already downloaded occurrence data from GBIF? If so, set to false.
 download_lakes <- FALSE               # Have you already downloaded the lakes? If so, set to false.
 get_all_lakes <-  FALSE               # Have you downloaded all lake data from NOFA? If so, set to false.
 delete_north <-  TRUE                 # Do you want to use lakes north of Tronderlag? If so, set to true.
@@ -52,6 +53,8 @@ source("./R/1_GetIntroductions.R")
 
 
 size_threshold <- 0.02
+
+HFP_download <- TRUE                # Set this to false if you already have raster data downloaded in your data folder.
 
 source("./R/2_BioticDataAddition.R")
 

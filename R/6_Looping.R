@@ -43,7 +43,7 @@ print("Data is scaled.")
 calc_beta <- apply(as.matrix(calculate(beta,draws)),2,mean)
 calc_alpha <- apply(as.matrix(calculate(alpha,draws)),2,mean)
 
-presences <- model_data_extra$intro_data
+presences <- model_data_extra$intro_data$introduced
 
 # Get full index of nearby lakes that have a chance of colonisation, then narrow them down to lakes within 5000m
 attempt <- as.matrix(env_data) %*% as.matrix(calc_beta)
@@ -52,7 +52,7 @@ expeta <- exp(eta)
 init_probabilities <- expeta/(1+expeta)
 
 nn_all <- get.knnx(raw_data[,c("utm_x","utm_y")],raw_data[c("utm_x","utm_y")],k=100)
-nn_all$nn.index[nn_all$nn.dist > 5000 & nn_all$nn.dist == 0] <- 0
+nn_all$nn.index[nn_all$nn.dist > 5000 | nn_all$nn.dist == 0] <- 0
 
 
 periods <- list()
@@ -211,6 +211,6 @@ print("Finished forecasting.")
 # }
 
 forecasts <- periods
-saveRDS(forecasts, file=paste0("./Data/",gsub(' ','_',species_name),"/forecasts.RDS"))
+saveRDS(forecasts, file=paste0("./Data/Species_Data/",gsub(' ','_',focal_species),"/forecasts.RDS"))
 summary(forecasts)
-
+summary(rowSums(forecasts)/100)
